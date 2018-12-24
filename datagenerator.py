@@ -7,7 +7,7 @@
 import tensorflow as tf
 import numpy as np
 
-from tensorflow.contrib.data import Dataset
+from tensorflow.data import Dataset
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework.ops import convert_to_tensor
 
@@ -67,12 +67,23 @@ class ImageDataGenerator(object):
 
         # distinguish between train/infer. when calling the parsing functions
         if mode == 'training':
-            data = data.map(self._parse_function_train, num_threads=8,
-                      output_buffer_size=100*batch_size)
+            data = data.map(self._parse_function_train)
+            # function may update, this function not work
+            #data = data.map(self._parse_function_train, num_threads=8,
+            #          output_buffer_size=100*batch_size)
 
         elif mode == 'inference':
-            data = data.map(self._parse_function_inference, num_threads=8,
-                      output_buffer_size=100*batch_size)
+            #data = data.map(self._parse_function_inference, num_threads=8,
+            #          output_buffer_size=100*batch_size)
+            
+            # Without any optimization
+            #data = data.map(self._parse_function_inference)
+            
+            # Optimize with pipeline input: test machine core num = 16
+            data = data.map(self._parse_function_inference, num_parallel_calls = 16)
+
+            # Optimize with put map and batch together, not success
+            # data = data.apply(tf.data.experimental.map_and_batch(map_func=self._parse_function_inference, batch_size=batch_size))
 
         else:
             raise ValueError("Invalid mode '%s'." % (mode))
@@ -83,6 +94,9 @@ class ImageDataGenerator(object):
 
         # create a new dataset with batches of images
         data = data.batch(batch_size)
+        
+        # Adding prefetch
+        data = data.prefetch(16)
 
         self.data = data
 

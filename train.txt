@@ -1,0 +1,3 @@
+images/llama.jpeg 0
+images/sealion.jpeg 1
+images/zebra.jpeg 2

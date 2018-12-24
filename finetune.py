@@ -16,23 +16,24 @@ import os
 
 import numpy as np
 import tensorflow as tf
+import time
 
 from alexnet import AlexNet
 from datagenerator import ImageDataGenerator
 from datetime import datetime
-from tensorflow.contrib.data import Iterator
+from tensorflow.data import Iterator
 
 """
 Configuration Part.
 """
 
 # Path to the textfiles for the trainings and validation set
-train_file = '/path/to/train.txt'
-val_file = '/path/to/val.txt'
+train_file = 'train.txt'
+val_file = 'val.txt'
 
 # Learning params
 learning_rate = 0.01
-num_epochs = 10
+num_epochs = 3
 batch_size = 128
 
 # Network params
@@ -45,7 +46,7 @@ display_step = 20
 
 # Path for tf.summary.FileWriter and to store model checkpoints
 filewriter_path = "/tmp/finetune_alexnet/tensorboard"
-checkpoint_path = "/tmp/finetune_alexnet/checkpoints"
+checkpoint_path = "checkpoints"
 
 """
 Main Part of the finetuning Script.
@@ -61,7 +62,7 @@ with tf.device('/cpu:0'):
                                  mode='training',
                                  batch_size=batch_size,
                                  num_classes=num_classes,
-                                 shuffle=True)
+                                 shuffle=False)
     val_data = ImageDataGenerator(val_file,
                                   mode='inference',
                                   batch_size=batch_size,
@@ -83,7 +84,9 @@ y = tf.placeholder(tf.float32, [batch_size, num_classes])
 keep_prob = tf.placeholder(tf.float32)
 
 # Initialize model
+print("{} Start model...".format(datetime.now()))
 model = AlexNet(x, keep_prob, num_classes, train_layers)
+print("{} Finish model...".format(datetime.now()))
 
 # Link variable to model output
 score = model.fc8
@@ -149,60 +152,72 @@ with tf.Session() as sess:
     writer.add_graph(sess.graph)
 
     # Load the pretrained weights into the non-trainable layer
+    print("{} Start load...".format(datetime.now()))
     model.load_initial_weights(sess)
+    print("{} Finish load...".format(datetime.now()))
 
-    print("{} Start training...".format(datetime.now()))
+    #print("{} Start training...".format(datetime.now()))
     print("{} Open Tensorboard at --logdir {}".format(datetime.now(),
                                                       filewriter_path))
-
+    total_time = 0
     # Loop over number of epochs
     for epoch in range(num_epochs):
 
-        print("{} Epoch number: {}".format(datetime.now(), epoch+1))
+        #print("{} Epoch number: {}".format(datetime.now(), epoch+1))
 
         # Initialize iterator with the training dataset
-        sess.run(training_init_op)
+        #sess.run(training_init_op)
 
-        for step in range(train_batches_per_epoch):
+        #for step in range(train_batches_per_epoch):
 
             # get next batch of data
-            img_batch, label_batch = sess.run(next_batch)
+            #img_batch, label_batch = sess.run(next_batch)
 
             # And run the training op
-            sess.run(train_op, feed_dict={x: img_batch,
-                                          y: label_batch,
-                                          keep_prob: dropout_rate})
+            #sess.run(train_op, feed_dict={x: img_batch,
+            #                              y: label_batch,
+            #                              keep_prob: dropout_rate})
 
             # Generate summary with the current batch of data and write to file
-            if step % display_step == 0:
-                s = sess.run(merged_summary, feed_dict={x: img_batch,
-                                                        y: label_batch,
-                                                        keep_prob: 1.})
+            #if step % display_step == 0:
+            #    s = sess.run(merged_summary, feed_dict={x: img_batch,
+            #                                            y: label_batch,
+            #                                            keep_prob: 1.})
 
-                writer.add_summary(s, epoch*train_batches_per_epoch + step)
+            #    writer.add_summary(s, epoch*train_batches_per_epoch + step)
 
         # Validate the model on the entire validation set
         print("{} Start validation".format(datetime.now()))
         sess.run(validation_init_op)
         test_acc = 0.
         test_count = 0
+        cal_time = 0
         for _ in range(val_batches_per_epoch):
 
+            start_time = time.time()
             img_batch, label_batch = sess.run(next_batch)
             acc = sess.run(accuracy, feed_dict={x: img_batch,
                                                 y: label_batch,
                                                 keep_prob: 1.})
+            end_time = time.time()
+            cal_time += end_time - start_time
             test_acc += acc
             test_count += 1
         test_acc /= test_count
-        print("{} Validation Accuracy = {:.4f}".format(datetime.now(),
-                                                       test_acc))
-        print("{} Saving checkpoint of model...".format(datetime.now()))
+        #print("{} Validation Accuracy = {:.4f}".format(datetime.now(),
+        #                                               test_acc))
+        #print("{} Saving checkpoint of model...".format(datetime.now()))
+
+        print("total_time", epoch, ":", cal_time)
+        total_time = total_time + cal_time
+
+    print("avg_time:",total_time/num_epochs)
+    print("{} Finish all".format(datetime.now()))
 
         # save checkpoint of the model
-        checkpoint_name = os.path.join(checkpoint_path,
-                                       'model_epoch'+str(epoch+1)+'.ckpt')
-        save_path = saver.save(sess, checkpoint_name)
+        #checkpoint_name = os.path.join(checkpoint_path,
+        #                               'model_epoch'+str(epoch+1)+'.ckpt')
+        #save_path = saver.save(sess, checkpoint_name)
 
-        print("{} Model checkpoint saved at {}".format(datetime.now(),
-                                                       checkpoint_name))
+        #print("{} Model checkpoint saved at {}".format(datetime.now(),
+        #                                               checkpoint_name))
